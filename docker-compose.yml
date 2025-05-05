@@ -1,0 +1,47 @@
+version: '3'
+
+services:
+  plc1:
+    image: python:3.9-slim
+    command: python -m pymodbus.server --host 0.0.0.0 --port 502
+    ports:
+      - "502:502"
+    networks:
+      ot_network:
+        ipv4_address: 192.168.100.10
+    volumes:
+      - ./plc_simulator.py:/app/plc_simulator.py
+
+  hmi:
+    image: python:3.9-slim
+    command: python -m http.server 80
+    ports:
+      - "80:80"
+    networks:
+      ot_network:
+        ipv4_address: 192.168.100.20
+
+  engineering_workstation:
+    image: python:3.9-slim
+    command: python -m http.server 8080
+    ports:
+      - "8080:8080"
+    networks:
+      ot_network:
+        ipv4_address: 192.168.100.30
+
+  rtu:
+    image: python:3.9-slim
+    command: python -m http.server 20000
+    ports:
+      - "20000:20000"
+    networks:
+      ot_network:
+        ipv4_address: 192.168.100.40
+
+networks:
+  ot_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24

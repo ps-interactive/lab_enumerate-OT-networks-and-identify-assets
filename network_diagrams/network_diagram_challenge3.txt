@@ -1,4 +1,4 @@
-CHALLENGE 2 NETWORK DIAGRAM
+CHALLENGE 3 NETWORK DIAGRAM
 ---------------------------
 
 [YOU] -- [OT NETWORK (192.168.100.0/24)]
@@ -8,3 +8,5 @@ CHALLENGE 2 NETWORK DIAGRAM
            |-- [HMI] (192.168.100.20) - Port 80 (HTTP)
            |
            |-- [Engineering Workstation] (192.168.100.30) - Port 8080 (HTTP)
+           |
+           |-- [RTU] (192.168.100.40) - Port 20000 (DNP3)

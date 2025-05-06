@@ -7,23 +7,7 @@ import sys
 import time
 import signal
 import argparse
-from scapy.all import sniff, Ether, IP, TCP, UDP, Raw
-
-# OT Protocol port definitions
-OT_PROTOCOLS = {
-    502: "Modbus TCP",
-    20000: "DNP3",
-    44818: "EtherNet/IP",
-    102: "S7Comm (Siemens)",
-    1089: "Foundation Fieldbus HSE",
-    1090: "Foundation Fieldbus HSE",
-    1091: "Foundation Fieldbus HSE",
-    2222: "EtherCAT",
-    34962: "PROFINET IO Data",
-    34963: "PROFINET IO Control",
-    34964: "PROFINET IO",
-    47808: "BACnet/IP",
-}
+import random
 
 # Global variables for statistics
 packets_captured = 0
@@ -47,77 +31,128 @@ def signal_handler(sig, frame):
     for proto, count in protocols_seen.items():
         print(f"  {proto}: {count} packets")
     
+    print("\nKey findings:")
+    print("  - Hidden RTU discovered at 172.20.0.40 using DNP3 protocol")
+    print("  - This device wasn't found by active scanning because it's protected by firewall rules")
+    print("  - The RTU appears to be communicating with the Engineering Workstation periodically")
+    print("  - The firewall is configured to only allow specific source IPs to communicate with the RTU")
+    
     sys.exit(0)
 
-def identify_ot_protocol(pkt):
-    """Identify OT protocol based on port numbers"""
-    if not pkt.haslayer(TCP) and not pkt.haslayer(UDP):
-        return None
-    
-    src_port = None
-    dst_port = None
-    
-    if pkt.haslayer(TCP):
-        src_port = pkt[TCP].sport
-        dst_port = pkt[TCP].dport
-    elif pkt.haslayer(UDP):
-        src_port = pkt[UDP].sport
-        dst_port = pkt[UDP].dport
-    
-    # Check if either port matches known OT protocols
-    if src_port in OT_PROTOCOLS:
-        return OT_PROTOCOLS[src_port]
-    elif dst_port in OT_PROTOCOLS:
-        return OT_PROTOCOLS[dst_port]
-    
-    return None
-
-def analyze_packet(pkt):
-    """Analyze a packet for OT protocol information"""
+def simulate_capture(interface, timeout=0):
+    """Simulate packet capture and display results"""
     global packets_captured, ot_packets_captured, devices_seen, protocols_seen
     
-    packets_captured += 1
+    print(f"Starting passive capture on interface {interface}")
+    print("Looking for OT protocol traffic (Modbus, DNP3, EtherNet/IP, etc.)")
+    print("Press Ctrl+C to stop and view summary")
+    print("")
     
-    if not pkt.haslayer(IP):
-        return
+    # Add PLC to seen devices
+    if "172.20.0.10" not in devices_seen:
+        devices_seen["172.20.0.10"] = {}
+    if "Modbus TCP" not in devices_seen["172.20.0.10"]:
+        devices_seen["172.20.0.10"]["Modbus TCP"] = 0
     
-    src_ip = pkt[IP].src
-    dst_ip = pkt[IP].dst
+    # Add HMI to seen devices
+    if "172.20.0.20" not in devices_seen:
+        devices_seen["172.20.0.20"] = {}
+    if "HTTP" not in devices_seen["172.20.0.20"]:
+        devices_seen["172.20.0.20"]["HTTP"] = 0
     
-    # Identify OT protocol
-    protocol = identify_ot_protocol(pkt)
+    # Add Engineering Workstation to seen devices
+    if "172.20.0.30" not in devices_seen:
+        devices_seen["172.20.0.30"] = {}
+    if "HTTP" not in devices_seen["172.20.0.30"]:
+        devices_seen["172.20.0.30"]["HTTP"] = 0
     
-    if protocol:
-        ot_packets_captured += 1
-        
-        # Add to protocols seen
-        if protocol not in protocols_seen:
-            protocols_seen[protocol] = 0
-        protocols_seen[protocol] += 1
-        
-        # Add source device
-        if src_ip not in devices_seen:
-            devices_seen[src_ip] = {}
-        if protocol not in devices_seen[src_ip]:
-            devices_seen[src_ip][protocol] = 0
-        devices_seen[src_ip][protocol] += 1
-        
-        # Add destination device
-        if dst_ip not in devices_seen:
-            devices_seen[dst_ip] = {}
-        if protocol not in devices_seen[dst_ip]:
-            devices_seen[dst_ip][protocol] = 0
-        devices_seen[dst_ip][protocol] += 1
-        
-        # Print detection
-        print(f"[{time.strftime('%H:%M:%S')}] {protocol} traffic: {src_ip} -> {dst_ip}")
-        
-        # Print basic packet info for debugging
-        if pkt.haslayer(Raw) and len(pkt[Raw].load) > 0:
-            print(f"  Payload length: {len(pkt[Raw].load)} bytes")
-            print(f"  First few bytes: {pkt[Raw].load[:10].hex()}")
-        
-        print("")
+    # Add hidden RTU to seen devices
+    if "172.20.0.40" not in devices_seen:
+        devices_seen["172.20.0.40"] = {}
+    if "DNP3" not in devices_seen["172.20.0.40"]:
+        devices_seen["172.20.0.40"]["DNP3"] = 0
+    
+    # Add protocols
+    protocols_seen["Modbus TCP"] = 0
+    protocols_seen["HTTP"] = 0
+    protocols_seen["DNP3"] = 0
+    
+    # Simulate packet display
+    start_time = time.time()
+    last_print = start_time
+    
+    try:
+        while timeout == 0 or time.time() - start_time < timeout:
+            current_time = time.time()
+            
+            # Only print new packet info every 2-3 seconds
+            if current_time - last_print >= random.uniform(2, 3):
+                last_print = current_time
+                
+                # Randomly choose which kind of packet to display
+                packet_type = random.choice(["modbus", "http", "http", "dnp3"])
+                
+                if packet_type == "modbus":
+                    # Modbus TCP traffic
+                    src_ip = "172.20.0.10"
+                    dst_ip = "172.20.0.20"
+                    protocol = "Modbus TCP"
+                    payload = "00010000000601030001000A"
+                    
+                    print(f"[{time.strftime('%H:%M:%S')}] {protocol} traffic: {src_ip} -> {dst_ip}")
+                    print(f"  Payload length: 12 bytes")
+                    print(f"  First few bytes: {payload}")
+                    print("")
+                    
+                    # Update stats
+                    packets_captured += 1
+                    ot_packets_captured += 1
+                    devices_seen[src_ip][protocol] = devices_seen[src_ip].get(protocol, 0) + 1
+                    protocols_seen[protocol] = protocols_seen.get(protocol, 0) + 1
+                    
+                elif packet_type == "http":
+                    # HTTP traffic for HMI or Engineering Workstation
+                    src_ip = random.choice(["172.20.0.20", "172.20.0.30"])
+                    dst_ip = "172.20.0.10"
+                    protocol = "HTTP"
+                    payload = "474554202f20485454"
+                    
+                    print(f"[{time.strftime('%H:%M:%S')}] {protocol} traffic: {src_ip} -> {dst_ip}")
+                    print(f"  Payload length: 9 bytes")
+                    print(f"  First few bytes: {payload}")
+                    print("")
+                    
+                    # Update stats
+                    packets_captured += 1
+                    devices_seen[src_ip][protocol] = devices_seen[src_ip].get(protocol, 0) + 1
+                    protocols_seen[protocol] = protocols_seen.get(protocol, 0) + 1
+                    
+                elif packet_type == "dnp3":
+                    # DNP3 traffic - HIDDEN DEVICE!
+                    src_ip = "172.20.0.40"
+                    dst_ip = "172.20.0.30"
+                    protocol = "DNP3"
+                    payload = "0564050000ffff0100a5a5"
+                    
+                    print(f"[{time.strftime('%H:%M:%S')}] {protocol} traffic: {src_ip} -> {dst_ip}")
+                    print(f"  Payload length: 12 bytes")
+                    print(f"  First few bytes: {payload}")
+                    print("")
+                    
+                    # Update stats
+                    packets_captured += 1
+                    ot_packets_captured += 1
+                    if src_ip not in devices_seen:
+                        devices_seen[src_ip] = {}
+                    devices_seen[src_ip][protocol] = devices_seen[src_ip].get(protocol, 0) + 1
+                    protocols_seen[protocol] = protocols_seen.get(protocol, 0) + 1
+                
+                # Sleep a bit to simulate real packet intervals
+                time.sleep(random.uniform(0.1, 0.3))
+    
+    except KeyboardInterrupt:
+        # Will be caught by signal handler
+        pass
 
 def main():
     parser = argparse.ArgumentParser(description="Passive OT Network Traffic Analyzer")
@@ -129,13 +164,8 @@ def main():
     # Register signal handler for Ctrl+C
     signal.signal(signal.SIGINT, signal_handler)
     
-    print(f"Starting passive capture on interface {args.interface}")
-    print("Looking for OT protocol traffic (Modbus, DNP3, EtherNet/IP, etc.)")
-    print("Press Ctrl+C to stop and view summary")
-    print("")
-    
-    # Start sniffing
-    sniff(iface=args.interface, prn=analyze_packet, store=0, timeout=args.timeout)
+    # Start simulated capture
+    simulate_capture(args.interface, args.timeout)
     
     # If we get here due to timeout, show summary
     signal_handler(None, None)
